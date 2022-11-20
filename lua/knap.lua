@@ -91,7 +91,8 @@ function buffer_init()
 		textopdfviewerrefresh = "none",
 		textopdfforwardjump = "sioyek --inverse-search 'nvim --headless -es --cmd \"lua require('\"'\"'knaphelper'\"'\"').relayjump('\"'\"'%servername%'\"'\"','\"'\"'%1'\"'\"',%2,%3)\"' --reuse-instance --forward-search-file %srcfile% --forward-search-line %line% %outputfile%",
 		textopdfshorterror = "A=%outputfile% ; LOGFILE=\"${A%.pdf}.log\" ; rubber-info \"$LOGFILE\" 2>&1 | head -n 1",
-		delay = 250
+		delay = 250,
+		multifile = true,
 	}
 	-- merge settings; buffer and global take precedent over default
 	bsettings = vim.tbl_extend("keep", bsettings, dsettings)
@@ -304,7 +305,6 @@ function is_running(pid)
 	return (running == 0)
 end
 
-
 -- retrieve the list of (listed) buffers
 local function get_buffer_list()
 	local buffers = {}
@@ -321,19 +321,20 @@ end
 -- move the cursor to a location if the file requested is the current
 -- one, works also for multifile projects
 function jump(filename, line, column)
-	-- clean path coming from SyncTex
-	filename = filename:gsub("/./", "/")
-	local buf_list = get_buffer_list()
-	local window = api.nvim_get_current_win()
-	local buffer
+	if vim.b.knap_settings["multifile"] then
+		-- clean path coming from SyncTex
+		filename = filename:gsub("/./", "/")
+		local buf_list = get_buffer_list()
+		local window = api.nvim_get_current_win()
+		local buffer
 
-	-- if filename is not a listed buffer, then set active window to this
-	-- buffer else create buffer and set active window to the newly created buffer
-	if buf_list[filename] ~= nil then
+		-- if filename is not a listed buffer, then set active window to this
+		-- buffer else create buffer and set active window to the newly created buffer
+		if buf_list[filename] ~= nil then
 
-		buffer = buf_list[filename]
-		api.nvim_win_set_buf(window, buf_list[filename])
-		print("Jumping to line " .. tostring(line) .. " col " .. tostring(column))
+			buffer = buf_list[filename]
+			api.nvim_win_set_buf(window, buf_list[filename])
+			print("Jumping to line " .. tostring(line) .. " col " .. tostring(column))
 
 		else
 
@@ -348,9 +349,26 @@ function jump(filename, line, column)
 			api.nvim_win_set_buf(window, buffer)
 			vim.bo[buffer].filetype = "tex"
 
-	end
+		end
 
-	api.nvim_win_set_cursor(window, {line, column})
+		api.nvim_win_set_cursor(window, { line, column })
+
+	else
+
+		-- compare name of destination with buffer name
+		local jumpbn = basename(filename)
+		local bufbn = basename(api.nvim_buf_get_name(0))
+		if (jumpbn == bufbn) then
+			-- if they match then move cursor
+			api.nvim_win_set_cursor(0, { line, column })
+			print('jumping to line ' .. tostring(line) .. ' col ' ..
+				tostring(column))
+		else
+			-- if not, just report where the destination is
+			print('jump spot at line ' .. tostring(line) .. ' col ' ..
+				tostring(column) .. ' in ' .. filename)
+		end
+	end
 
 end
 
